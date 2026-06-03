@@ -1,222 +1,633 @@
-const SERVICES=[{id:"corte",num:"01",name:"Corte Masculino",desc:"Corte personalizado para o seu estilo. Tesoura, máquina ou degradê.",price:25,duration:40},{id:"barba",num:"02",name:"Barba",desc:"Modelagem, aparagem ou barbear completo com acabamento profissional.",price:20,duration:30},{id:"combo",num:"03",name:"Corte + Barba",desc:"O combo completo para renovar o visual com estilo.",price:40,duration:60},{id:"degrade",num:"04",name:"Degradê",desc:"Fade preciso com acabamento impecável nas laterais.",price:30,duration:50},{id:"pigmentacao",num:"05",name:"Pigmentação",desc:"Cobertura de falhas e uniformização da barba ou cabelo.",price:35,duration:40},{id:"sobrancelha",num:"06",name:"Sobrancelha",desc:"Design e acabamento para sobrancelhas masculinas.",price:10,duration:20}];
-const PROFESSIONALS=[{id:"paulo",name:"Paulo Renovação",role:"Barbeiro",photo:"assets/img/paulo-renovacao.svg",instagram:"https://www.instagram.com/paulorenovacao_/",bio:"Especialista em cortes clássicos, modernos, degradê e acabamento masculino."},{id:"eltin",name:"Eltin dos Cortes",role:"Barbeiro",photo:"assets/img/eltin-dos-cortes.svg",instagram:"https://www.instagram.com/eltin_dos_cortes/",bio:"Atendimento profissional com foco em estilo, precisão e acabamento de qualidade."}];
-const TIME_SLOTS_WEEK=["08:00","08:40","09:20","10:00","10:40","11:20","13:00","13:40","14:20","15:00","15:40","16:20","17:00","17:40","18:20","19:00"];
-const TIME_SLOTS_SATURDAY=["08:00","08:40","09:20","10:00","10:40","11:20","13:00","13:40","14:20","15:00","15:40","16:20","17:00"];
-const STORAGE_KEY="renovacao_barber_reservas";
-let bookingState={serviceId:null,professionalId:null,date:null,time:null};
+// ======================================================
+// SISTEMA DE AGENDAMENTO - RENOVAÇÃO BARBER SHOP
+// Versão HTML/CSS/JS puro usando localStorage
+// ======================================================
 
-function money(value){return value.toLocaleString("pt-BR",{style:"currency",currency:"BRL"});}
-function getReservations(){return JSON.parse(localStorage.getItem(STORAGE_KEY)||"[]");}
-function saveReservations(reservations){localStorage.setItem(STORAGE_KEY,JSON.stringify(reservations));}
-function generateId(){return "REN-"+Date.now().toString(36).toUpperCase();}
-function getService(id){return SERVICES.find(service=>service.id===id);}
-function getProfessional(id){return PROFESSIONALS.find(professional=>professional.id===id);}
-function formatDate(dateString){const [year,month,day]=dateString.split("-");return `${day}/${month}/${year}`;}
+const SERVICES = [
+  {
+    id: "corte",
+    num: "01",
+    name: "Corte Masculino",
+    desc: "Corte personalizado para o seu estilo. Tesoura, máquina ou degradê.",
+    price: 25,
+    duration: 40,
+  },
+  {
+    id: "barba",
+    num: "02",
+    name: "Barba",
+    desc: "Modelagem, aparagem ou barbear completo com acabamento profissional.",
+    price: 20,
+    duration: 30,
+  },
+  {
+    id: "combo",
+    num: "03",
+    name: "Corte + Barba",
+    desc: "O combo completo para renovar o visual com estilo.",
+    price: 40,
+    duration: 60,
+  },
+  {
+    id: "degrade",
+    num: "04",
+    name: "Degradê",
+    desc: "Fade preciso com acabamento impecável nas laterais.",
+    price: 30,
+    duration: 50,
+  },
+  {
+    id: "pigmentacao",
+    num: "05",
+    name: "Pigmentação",
+    desc: "Cobertura de falhas e uniformização da barba ou cabelo.",
+    price: 35,
+    duration: 40,
+  },
+  {
+    id: "sobrancelha",
+    num: "06",
+    name: "Sobrancelha",
+    desc: "Design e acabamento para sobrancelhas masculinas.",
+    price: 10,
+    duration: 20,
+  },
+];
 
-const navbar=document.getElementById("navbar");
-window.addEventListener("scroll",()=>{navbar.classList.toggle("scrolled",window.scrollY>40);});
+const PROFESSIONALS = [
+  {
+    id: "paulo",
+    name: "Paulo Renovação",
+    role: "Barbeiro",
+    photo: "assets/img/paulo-renovacao.svg",
+    whatsapp: "5533998316416",
+    instagram: "https://www.instagram.com/paulorenovacao_/",
+    bio: "Especialista em cortes clássicos, modernos, degradê e acabamento masculino.",
+  },
+  {
+    id: "eltin",
+    name: "Eltin dos Cortes",
+    role: "Barbeiro",
+    photo: "assets/img/eltin-dos-cortes.svg",
+    whatsapp: "5533998250865",
+    instagram: "https://www.instagram.com/eltin_dos_cortes/",
+    bio: "Atendimento profissional com foco em estilo, precisão e acabamento de qualidade.",
+  },
+];
 
-const menuBtn=document.getElementById("menuBtn");
-const mobileMenu=document.getElementById("mobileMenu");
-const closeMenu=document.getElementById("closeMenu");
-menuBtn.addEventListener("click",()=>mobileMenu.classList.add("open"));
-closeMenu.addEventListener("click",()=>mobileMenu.classList.remove("open"));
-function closeMobile(){mobileMenu.classList.remove("open");}
-window.closeMobile=closeMobile;
+const TIME_SLOTS_WEEK = [
+  "08:00", "08:40", "09:20", "10:00", "10:40",
+  "11:20", "13:00", "13:40", "14:20", "15:00",
+  "15:40", "16:20", "17:00", "17:40", "18:20", "19:00"
+];
 
-const reveals=document.querySelectorAll(".reveal");
-const observer=new IntersectionObserver((entries)=>{entries.forEach((entry)=>{if(entry.isIntersecting){entry.target.classList.add("visible");observer.unobserve(entry.target);}});},{threshold:.12});
-reveals.forEach((element)=>observer.observe(element));
+const TIME_SLOTS_SATURDAY = [
+  "08:00", "08:40", "09:20", "10:00", "10:40",
+  "11:20", "13:00", "13:40", "14:20", "15:00",
+  "15:40", "16:20", "17:00"
+];
 
-const sections=document.querySelectorAll("section[id], footer[id]");
-const navLinks=document.querySelectorAll(".nav-links a");
-window.addEventListener("scroll",()=>{let current="";sections.forEach((section)=>{if(window.scrollY>=section.offsetTop-120){current=section.id;}});navLinks.forEach((link)=>{link.style.color=link.getAttribute("href")==="#"+current?"var(--gold)":"";});});
+const STORAGE_KEY = "renovacao_barber_reservas";
 
-function renderServicesPreview(){
-  const container=document.getElementById("servicesPreview");
-  container.innerHTML=SERVICES.map((service)=>`
+let bookingState = {
+  serviceId: null,
+  professionalId: null,
+  date: null,
+  time: null,
+};
+
+function money(value) {
+  return value.toLocaleString("pt-BR", {
+    style: "currency",
+    currency: "BRL",
+  });
+}
+
+function getReservations() {
+  return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
+}
+
+function saveReservations(reservations) {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(reservations));
+}
+
+function generateId() {
+  return "REN-" + Date.now().toString(36).toUpperCase();
+}
+
+function getService(id) {
+  return SERVICES.find((service) => service.id === id);
+}
+
+function getProfessional(id) {
+  return PROFESSIONALS.find((professional) => professional.id === id);
+}
+
+function formatDate(dateString) {
+  const [year, month, day] = dateString.split("-");
+  return `${day}/${month}/${year}`;
+}
+
+// NAV scroll
+const navbar = document.getElementById("navbar");
+
+window.addEventListener("scroll", () => {
+  navbar.classList.toggle("scrolled", window.scrollY > 40);
+});
+
+// Mobile menu
+const menuBtn = document.getElementById("menuBtn");
+const mobileMenu = document.getElementById("mobileMenu");
+const closeMenu = document.getElementById("closeMenu");
+
+menuBtn.addEventListener("click", () => {
+  mobileMenu.classList.add("open");
+});
+
+closeMenu.addEventListener("click", () => {
+  mobileMenu.classList.remove("open");
+});
+
+function closeMobile() {
+  mobileMenu.classList.remove("open");
+}
+
+window.closeMobile = closeMobile;
+
+// Scroll reveal
+const reveals = document.querySelectorAll(".reveal");
+
+const observer = new IntersectionObserver(
+  (entries) => {
+    entries.forEach((entry) => {
+      if (entry.isIntersecting) {
+        entry.target.classList.add("visible");
+        observer.unobserve(entry.target);
+      }
+    });
+  },
+  { threshold: 0.12 }
+);
+
+reveals.forEach((element) => observer.observe(element));
+
+// Active nav link
+const sections = document.querySelectorAll("section[id], footer[id]");
+const navLinks = document.querySelectorAll(".nav-links a");
+
+window.addEventListener("scroll", () => {
+  let current = "";
+
+  sections.forEach((section) => {
+    if (window.scrollY >= section.offsetTop - 120) {
+      current = section.id;
+    }
+  });
+
+  navLinks.forEach((link) => {
+    link.style.color =
+      link.getAttribute("href") === "#" + current ? "var(--gold)" : "";
+  });
+});
+
+// Render services preview
+function renderServicesPreview() {
+  const container = document.getElementById("servicesPreview");
+
+  container.innerHTML = SERVICES.map((service) => `
     <div class="service-card reveal visible">
       <div class="service-num">${service.num}</div>
       <div class="service-name">${service.name}</div>
       <p class="service-desc">${service.desc}</p>
       <div class="service-price">${money(service.price)} <span>/ ${service.duration} min</span></div>
       <a href="#agendamento" class="service-cta" data-select-service="${service.id}">Agendar →</a>
-    </div>`).join("");
+    </div>
+  `).join("");
 }
 
-function renderServiceOptions(){
-  const container=document.getElementById("serviceOptions");
-  container.innerHTML=SERVICES.map((service)=>`
-    <div class="option-card ${bookingState.serviceId===service.id?"selected":""}" data-service-id="${service.id}">
+// Render service options
+function renderServiceOptions() {
+  const container = document.getElementById("serviceOptions");
+
+  container.innerHTML = SERVICES.map((service) => `
+    <div class="option-card ${
+      bookingState.serviceId === service.id ? "selected" : ""
+    }" data-service-id="${service.id}">
       <h4>${service.name}</h4>
       <p>${service.desc}</p>
       <div class="option-price">${money(service.price)} <span>· ${service.duration} min</span></div>
-    </div>`).join("");
-  container.querySelectorAll("[data-service-id]").forEach((card)=>{
-    card.addEventListener("click",()=>{bookingState.serviceId=card.dataset.serviceId;renderServiceOptions();goToStep(2);});
+    </div>
+  `).join("");
+
+  container.querySelectorAll("[data-service-id]").forEach((card) => {
+    card.addEventListener("click", () => {
+      bookingState.serviceId = card.dataset.serviceId;
+      renderServiceOptions();
+      goToStep(2);
+    });
   });
 }
 
-function renderProfessionalOptions(){
-  const container=document.getElementById("professionalOptions");
-  container.innerHTML=PROFESSIONALS.map((professional)=>`
-    <div class="professional-option ${bookingState.professionalId===professional.id?"selected":""}" data-professional-id="${professional.id}">
+// Render professionals
+function renderProfessionalOptions() {
+  const container = document.getElementById("professionalOptions");
+
+  container.innerHTML = PROFESSIONALS.map((professional) => `
+    <div class="professional-option ${
+      bookingState.professionalId === professional.id ? "selected" : ""
+    }" data-professional-id="${professional.id}">
       <img src="${professional.photo}" alt="${professional.name}">
       <h4>${professional.name}</h4>
       <p>${professional.bio}</p>
-    </div>`).join("");
-  container.querySelectorAll("[data-professional-id]").forEach((card)=>{
-    card.addEventListener("click",()=>{bookingState.professionalId=card.dataset.professionalId;renderProfessionalOptions();goToStep(3);});
+    </div>
+  `).join("");
+
+  container.querySelectorAll("[data-professional-id]").forEach((card) => {
+    card.addEventListener("click", () => {
+      bookingState.professionalId = card.dataset.professionalId;
+      renderProfessionalOptions();
+      goToStep(3);
+    });
   });
 }
 
-function goToStep(step){
-  document.querySelectorAll(".booking-step").forEach((el)=>el.classList.remove("active"));
-  document.querySelectorAll(".step-pill").forEach((el)=>el.classList.remove("active"));
+// Steps
+function goToStep(step) {
+  document.querySelectorAll(".booking-step").forEach((el) => {
+    el.classList.remove("active");
+  });
+
+  document.querySelectorAll(".step-pill").forEach((el) => {
+    el.classList.remove("active");
+  });
+
   document.getElementById("bookingSuccess").classList.remove("active");
-  const stepElement=document.querySelector(`[data-step="${step}"]`);
-  const indicator=document.querySelector(`[data-step-indicator="${step}"]`);
-  if(stepElement)stepElement.classList.add("active");
-  if(indicator)indicator.classList.add("active");
-  if(step===2)renderProfessionalOptions();
-  if(step===4)renderTimeOptions();
-  if(step===5)renderBookingSummary();
-  document.getElementById("agendamento").scrollIntoView({behavior:"smooth",block:"start"});
+
+  const stepElement = document.querySelector(`[data-step="${step}"]`);
+  const indicator = document.querySelector(`[data-step-indicator="${step}"]`);
+
+  if (stepElement) stepElement.classList.add("active");
+  if (indicator) indicator.classList.add("active");
+
+  if (step === 2) renderProfessionalOptions();
+  if (step === 4) renderTimeOptions();
+  if (step === 5) renderBookingSummary();
+
+  document.getElementById("agendamento").scrollIntoView({
+    behavior: "smooth",
+    block: "start",
+  });
 }
 
-document.querySelectorAll("[data-back]").forEach((button)=>{button.addEventListener("click",()=>goToStep(Number(button.dataset.back)));});
+document.querySelectorAll("[data-back]").forEach((button) => {
+  button.addEventListener("click", () => {
+    goToStep(Number(button.dataset.back));
+  });
+});
 
-function setupDateInput(){
-  const input=document.getElementById("bookingDate");
-  const today=new Date();
-  const maxDate=new Date();
-  maxDate.setDate(today.getDate()+30);
-  input.min=today.toISOString().split("T")[0];
-  input.max=maxDate.toISOString().split("T")[0];
-  input.addEventListener("change",()=>{bookingState.date=input.value;});
-  document.getElementById("goToTimes").addEventListener("click",()=>{
-    if(!bookingState.date){alert("Escolha uma data para continuar.");return;}
-    const selectedDate=new Date(bookingState.date+"T12:00:00");
-    const day=selectedDate.getDay();
-    if(day===0){alert("Domingo está fechado. Escolha outra data.");return;}
+// Date input config
+function setupDateInput() {
+  const input = document.getElementById("bookingDate");
+  const today = new Date();
+  const maxDate = new Date();
+
+  maxDate.setDate(today.getDate() + 30);
+
+  input.min = today.toISOString().split("T")[0];
+  input.max = maxDate.toISOString().split("T")[0];
+
+  input.addEventListener("change", () => {
+    bookingState.date = input.value;
+  });
+
+  document.getElementById("goToTimes").addEventListener("click", () => {
+    if (!bookingState.date) {
+      alert("Escolha uma data para continuar.");
+      return;
+    }
+
+    const selectedDate = new Date(bookingState.date + "T12:00:00");
+    const day = selectedDate.getDay();
+
+    if (day === 0) {
+      alert("Domingo está fechado. Escolha outra data.");
+      return;
+    }
+
     goToStep(4);
   });
 }
 
-function isTimeBooked(professionalId,date,time){
-  return getReservations().some((reservation)=>reservation.professionalId===professionalId&&reservation.date===date&&reservation.time===time&&reservation.status!=="cancelada");
-}
-
-function renderTimeOptions(){
-  const container=document.getElementById("timeOptions");
-  if(!bookingState.date||!bookingState.professionalId){container.innerHTML=`<div class="empty-state">Escolha data e profissional primeiro.</div>`;return;}
-  const selectedDate=new Date(bookingState.date+"T12:00:00");
-  const day=selectedDate.getDay();
-  if(day===0){container.innerHTML=`<div class="empty-state">Domingo fechado.</div>`;return;}
-  const slots=day===6?TIME_SLOTS_SATURDAY:TIME_SLOTS_WEEK;
-  container.innerHTML=slots.map((slot)=>{const booked=isTimeBooked(bookingState.professionalId,bookingState.date,slot);return `<button class="time-btn ${booked?"disabled":""}" data-time="${slot}">${slot}</button>`;}).join("");
-  container.querySelectorAll("[data-time]:not(.disabled)").forEach((button)=>{
-    button.addEventListener("click",()=>{bookingState.time=button.dataset.time;container.querySelectorAll(".time-btn").forEach((btn)=>btn.classList.remove("selected"));button.classList.add("selected");setTimeout(()=>goToStep(5),250);});
+function isTimeBooked(professionalId, date, time) {
+  return getReservations().some((reservation) => {
+    return (
+      reservation.professionalId === professionalId &&
+      reservation.date === date &&
+      reservation.time === time &&
+      reservation.status !== "cancelada"
+    );
   });
 }
 
-function renderBookingSummary(){
-  const service=getService(bookingState.serviceId);
-  const professional=getProfessional(bookingState.professionalId);
-  const summary=document.getElementById("bookingSummary");
-  summary.innerHTML=`
-    <p><strong>Serviço:</strong> ${service?.name||"-"}</p>
-    <p><strong>Profissional:</strong> ${professional?.name||"-"}</p>
-    <p><strong>Data:</strong> ${bookingState.date?formatDate(bookingState.date):"-"}</p>
-    <p><strong>Horário:</strong> ${bookingState.time||"-"}</p>
-    <p><strong>Valor:</strong> ${service?money(service.price):"-"}</p>
-    <p><strong>Duração:</strong> ${service?.duration||"-"} minutos</p>`;
+function renderTimeOptions() {
+  const container = document.getElementById("timeOptions");
+
+  if (!bookingState.date || !bookingState.professionalId) {
+    container.innerHTML = `<div class="empty-state">Escolha data e profissional primeiro.</div>`;
+    return;
+  }
+
+  const selectedDate = new Date(bookingState.date + "T12:00:00");
+  const day = selectedDate.getDay();
+
+  if (day === 0) {
+    container.innerHTML = `<div class="empty-state">Domingo fechado.</div>`;
+    return;
+  }
+
+  const slots = day === 6 ? TIME_SLOTS_SATURDAY : TIME_SLOTS_WEEK;
+
+  container.innerHTML = slots
+    .map((slot) => {
+      const booked = isTimeBooked(
+        bookingState.professionalId,
+        bookingState.date,
+        slot
+      );
+
+      return `
+        <button class="time-btn ${booked ? "disabled" : ""}" data-time="${slot}">
+          ${slot}
+        </button>
+      `;
+    })
+    .join("");
+
+  container.querySelectorAll("[data-time]:not(.disabled)").forEach((button) => {
+    button.addEventListener("click", () => {
+      bookingState.time = button.dataset.time;
+
+      container.querySelectorAll(".time-btn").forEach((btn) => {
+        btn.classList.remove("selected");
+      });
+
+      button.classList.add("selected");
+
+      setTimeout(() => {
+        goToStep(5);
+      }, 250);
+    });
+  });
 }
 
-function setupBookingForm(){
-  const form=document.getElementById("bookingForm");
-  form.addEventListener("submit",(event)=>{
+function renderBookingSummary() {
+  const service = getService(bookingState.serviceId);
+  const professional = getProfessional(bookingState.professionalId);
+  const summary = document.getElementById("bookingSummary");
+
+  summary.innerHTML = `
+    <p><strong>Serviço:</strong> ${service?.name || "-"}</p>
+    <p><strong>Profissional:</strong> ${professional?.name || "-"}</p>
+    <p><strong>Data:</strong> ${bookingState.date ? formatDate(bookingState.date) : "-"}</p>
+    <p><strong>Horário:</strong> ${bookingState.time || "-"}</p>
+    <p><strong>Valor:</strong> ${service ? money(service.price) : "-"}</p>
+    <p><strong>Duração:</strong> ${service?.duration || "-"} minutos</p>
+  `;
+}
+
+// Booking form
+function setupBookingForm() {
+  const form = document.getElementById("bookingForm");
+
+  form.addEventListener("submit", (event) => {
     event.preventDefault();
-    if(!bookingState.serviceId||!bookingState.professionalId||!bookingState.date||!bookingState.time){alert("Preencha todas as etapas do agendamento.");return;}
-    if(isTimeBooked(bookingState.professionalId,bookingState.date,bookingState.time)){alert("Esse horário acabou de ser ocupado. Escolha outro horário.");goToStep(4);return;}
-    const service=getService(bookingState.serviceId);
-    const professional=getProfessional(bookingState.professionalId);
-    const reservation={id:generateId(),serviceId:service.id,serviceName:service.name,servicePrice:service.price,serviceDuration:service.duration,professionalId:professional.id,professionalName:professional.name,date:bookingState.date,time:bookingState.time,clientName:document.getElementById("clientName").value.trim(),clientPhone:document.getElementById("clientPhone").value.trim(),clientNote:document.getElementById("clientNote").value.trim(),status:"confirmada",createdAt:new Date().toISOString()};
-    const reservations=getReservations();
+
+    if (
+      !bookingState.serviceId ||
+      !bookingState.professionalId ||
+      !bookingState.date ||
+      !bookingState.time
+    ) {
+      alert("Preencha todas as etapas do agendamento.");
+      return;
+    }
+
+    if (
+      isTimeBooked(
+        bookingState.professionalId,
+        bookingState.date,
+        bookingState.time
+      )
+    ) {
+      alert("Esse horário acabou de ser ocupado. Escolha outro horário.");
+      goToStep(4);
+      return;
+    }
+
+    const service = getService(bookingState.serviceId);
+    const professional = getProfessional(bookingState.professionalId);
+
+    const reservation = {
+      id: generateId(),
+
+      serviceId: service.id,
+      serviceName: service.name,
+      servicePrice: service.price,
+      serviceDuration: service.duration,
+
+      professionalId: professional.id,
+      professionalName: professional.name,
+      professionalWhatsapp: professional.whatsapp,
+
+      date: bookingState.date,
+      time: bookingState.time,
+
+      clientName: document.getElementById("clientName").value.trim(),
+      clientPhone: document.getElementById("clientPhone").value.trim(),
+      clientNote: document.getElementById("clientNote").value.trim(),
+
+      status: "confirmada",
+      createdAt: new Date().toISOString(),
+    };
+
+    const reservations = getReservations();
     reservations.push(reservation);
     saveReservations(reservations);
-    bookingState={serviceId:null,professionalId:null,date:null,time:null};
+
+    const whatsappMessage = createWhatsappMessage(reservation);
+
+    window.open(
+      `https://wa.me/${reservation.professionalWhatsapp}?text=${encodeURIComponent(
+        whatsappMessage
+      )}`,
+      "_blank"
+    );
+
+    bookingState = {
+      serviceId: null,
+      professionalId: null,
+      date: null,
+      time: null,
+    };
+
     form.reset();
-    document.getElementById("bookingDate").value="";
-    document.querySelectorAll(".booking-step").forEach((el)=>el.classList.remove("active"));
-    document.querySelectorAll(".step-pill").forEach((el)=>el.classList.remove("active"));
+    document.getElementById("bookingDate").value = "";
+
+    document.querySelectorAll(".booking-step").forEach((el) => {
+      el.classList.remove("active");
+    });
+
+    document.querySelectorAll(".step-pill").forEach((el) => {
+      el.classList.remove("active");
+    });
+
     document.getElementById("bookingSuccess").classList.add("active");
+
     renderReservations();
     renderServiceOptions();
   });
 }
 
-function setupQuickSelectors(){
-  document.addEventListener("click",(event)=>{
-    const serviceLink=event.target.closest("[data-select-service]");
-    const professionalLink=event.target.closest("[data-select-professional]");
-    if(serviceLink){bookingState.serviceId=serviceLink.dataset.selectService;renderServiceOptions();setTimeout(()=>goToStep(2),200);}
-    if(professionalLink){bookingState.professionalId=professionalLink.dataset.selectProfessional;renderProfessionalOptions();}
+// External quick selectors
+function setupQuickSelectors() {
+  document.addEventListener("click", (event) => {
+    const serviceLink = event.target.closest("[data-select-service]");
+    const professionalLink = event.target.closest("[data-select-professional]");
+
+    if (serviceLink) {
+      bookingState.serviceId = serviceLink.dataset.selectService;
+      renderServiceOptions();
+
+      setTimeout(() => {
+        goToStep(2);
+      }, 200);
+    }
+
+    if (professionalLink) {
+      bookingState.professionalId = professionalLink.dataset.selectProfessional;
+      renderProfessionalOptions();
+    }
   });
 }
 
-function createWhatsappMessage(reservation){
-  return `Olá! Tenho uma reserva na Renovação Barber Shop.
+// Reservations
+function renderReservations(filterPhone = "") {
+  const container = document.getElementById("reservationsList");
+  let reservations = getReservations();
 
-Código: ${reservation.id}
-Cliente: ${reservation.clientName}
-Serviço: ${reservation.serviceName}
-Profissional: ${reservation.professionalName}
-Data: ${formatDate(reservation.date)}
-Horário: ${reservation.time}`;
-}
+  if (filterPhone.trim()) {
+    const onlyNumbers = filterPhone.replace(/\D/g, "");
 
-function renderReservations(filterPhone=""){
-  const container=document.getElementById("reservationsList");
-  let reservations=getReservations();
-  if(filterPhone.trim()){
-    const onlyNumbers=filterPhone.replace(/\D/g,"");
-    reservations=reservations.filter((reservation)=>reservation.clientPhone.replace(/\D/g,"").includes(onlyNumbers));
+    reservations = reservations.filter((reservation) =>
+      reservation.clientPhone.replace(/\D/g, "").includes(onlyNumbers)
+    );
   }
-  if(!reservations.length){container.innerHTML=`<div class="empty-state">Nenhuma reserva encontrada.</div>`;return;}
-  reservations=reservations.sort((a,b)=>new Date(`${a.date}T${a.time}`)-new Date(`${b.date}T${b.time}`));
-  container.innerHTML=reservations.map((reservation)=>`
-    <div class="reservation-card">
-      <h4>${reservation.serviceName}</h4>
-      <p><strong>Cliente:</strong> ${reservation.clientName}</p>
-      <p><strong>WhatsApp:</strong> ${reservation.clientPhone}</p>
-      <p><strong>Profissional:</strong> ${reservation.professionalName}</p>
-      <p><strong>Data e horário:</strong> ${formatDate(reservation.date)} às ${reservation.time}</p>
-      <p><strong>Valor:</strong> ${money(reservation.servicePrice)} · <strong>Duração:</strong> ${reservation.serviceDuration} min</p>
-      <p><strong>Status:</strong> ${reservation.status}</p>
-      ${reservation.clientNote?`<p><strong>Observação:</strong> ${reservation.clientNote}</p>`:""}
-      <div class="reservation-actions">
-        <a class="btn-outline" target="_blank" href="https://wa.me/5533999282037?text=${encodeURIComponent(createWhatsappMessage(reservation))}">Enviar pelo WhatsApp</a>
-        ${reservation.status!=="cancelada"?`<button class="btn-danger" data-cancel="${reservation.id}">Cancelar reserva</button>`:""}
-      </div>
-    </div>`).join("");
-  container.querySelectorAll("[data-cancel]").forEach((button)=>{
-    button.addEventListener("click",()=>{
-      if(!confirm("Tem certeza que deseja cancelar esta reserva?"))return;
-      const id=button.dataset.cancel;
-      const updated=getReservations().map((reservation)=>reservation.id===id?{...reservation,status:"cancelada"}:reservation);
+
+  if (!reservations.length) {
+    container.innerHTML = `<div class="empty-state">Nenhuma reserva encontrada.</div>`;
+    return;
+  }
+
+  reservations = reservations.sort((a, b) => {
+    return new Date(`${a.date}T${a.time}`) - new Date(`${b.date}T${b.time}`);
+  });
+
+  container.innerHTML = reservations
+    .map((reservation) => {
+      const whatsappNumber =
+        reservation.professionalWhatsapp || "5533999282037";
+
+      return `
+        <div class="reservation-card">
+          <h4>${reservation.serviceName}</h4>
+
+          <p><strong>Cliente:</strong> ${reservation.clientName}</p>
+          <p><strong>WhatsApp:</strong> ${reservation.clientPhone}</p>
+          <p><strong>Profissional:</strong> ${reservation.professionalName}</p>
+          <p><strong>Data e horário:</strong> ${formatDate(reservation.date)} às ${reservation.time}</p>
+          <p><strong>Valor:</strong> ${money(reservation.servicePrice)} · <strong>Duração:</strong> ${reservation.serviceDuration} min</p>
+          <p><strong>Status:</strong> ${reservation.status}</p>
+
+          ${
+            reservation.clientNote
+              ? `<p><strong>Observação:</strong> ${reservation.clientNote}</p>`
+              : ""
+          }
+
+          <div class="reservation-actions">
+            <a
+              class="btn-outline"
+              target="_blank"
+              href="https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
+                createWhatsappMessage(reservation)
+              )}"
+            >
+              Enviar para o profissional
+            </a>
+
+            ${
+              reservation.status !== "cancelada"
+                ? `<button class="btn-danger" data-cancel="${reservation.id}">Cancelar reserva</button>`
+                : ""
+            }
+          </div>
+        </div>
+      `;
+    })
+    .join("");
+
+  container.querySelectorAll("[data-cancel]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const confirmed = confirm("Tem certeza que deseja cancelar esta reserva?");
+      if (!confirmed) return;
+
+      const id = button.dataset.cancel;
+
+      const updated = getReservations().map((reservation) => {
+        return reservation.id === id
+          ? { ...reservation, status: "cancelada" }
+          : reservation;
+      });
+
       saveReservations(updated);
       renderReservations(document.getElementById("searchPhone").value);
     });
   });
 }
 
-function setupReservationsSearch(){
-  document.getElementById("filterReservations").addEventListener("click",()=>{renderReservations(document.getElementById("searchPhone").value);});
-  document.getElementById("clearFilter").addEventListener("click",()=>{document.getElementById("searchPhone").value="";renderReservations();});
+function createWhatsappMessage(reservation) {
+  return `Olá! Novo agendamento na Renovação Barber Shop.
+
+Código: ${reservation.id}
+
+Cliente: ${reservation.clientName}
+WhatsApp do cliente: ${reservation.clientPhone}
+
+Serviço: ${reservation.serviceName}
+Profissional: ${reservation.professionalName}
+
+Data: ${formatDate(reservation.date)}
+Horário: ${reservation.time}
+
+Valor: ${money(reservation.servicePrice)}
+Duração: ${reservation.serviceDuration} minutos
+
+Observação: ${reservation.clientNote || "Nenhuma observação."}`;
 }
 
-document.addEventListener("DOMContentLoaded",()=>{
+function setupReservationsSearch() {
+  document.getElementById("filterReservations").addEventListener("click", () => {
+    renderReservations(document.getElementById("searchPhone").value);
+  });
+
+  document.getElementById("clearFilter").addEventListener("click", () => {
+    document.getElementById("searchPhone").value = "";
+    renderReservations();
+  });
+}
+
+// Start
+document.addEventListener("DOMContentLoaded", () => {
   renderServicesPreview();
   renderServiceOptions();
   renderProfessionalOptions();
