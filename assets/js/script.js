@@ -76,15 +76,13 @@ const PROFESSIONALS = [
 ];
 
 const TIME_SLOTS_WEEK = [
-  "08:00", "08:40", "09:20", "10:00", "10:40",
-  "11:20", "13:00", "13:40", "14:20", "15:00",
-  "15:40", "16:20", "17:00", "17:40", "18:20", "19:00"
+  "08:00", "08:40", "09:20", "10:00", "10:40", "11:20",
+  "14:00", "14:40", "15:20", "16:00", "16:40", "17:20", "18:00", "18:40"
 ];
 
 const TIME_SLOTS_SATURDAY = [
-  "08:00", "08:40", "09:20", "10:00", "10:40",
-  "11:20", "13:00", "13:40", "14:20", "15:00",
-  "15:40", "16:20", "17:00"
+  "08:00", "08:40", "09:20", "10:00", "10:40", "11:20",
+  "14:00", "14:40", "15:20", "16:00", "16:40", "17:20", "18:00", "18:40"
 ];
 
 const STORAGE_KEY = "renovacao_barber_reservas";
@@ -210,8 +208,7 @@ function renderServiceOptions() {
   const container = document.getElementById("serviceOptions");
 
   container.innerHTML = SERVICES.map((service) => `
-    <div class="option-card ${
-      bookingState.serviceId === service.id ? "selected" : ""
+    <div class="option-card ${bookingState.serviceId === service.id ? "selected" : ""
     }" data-service-id="${service.id}">
       <h4>${service.name}</h4>
       <p>${service.desc}</p>
@@ -233,8 +230,7 @@ function renderProfessionalOptions() {
   const container = document.getElementById("professionalOptions");
 
   container.innerHTML = PROFESSIONALS.map((professional) => `
-    <div class="professional-option ${
-      bookingState.professionalId === professional.id ? "selected" : ""
+    <div class="professional-option ${bookingState.professionalId === professional.id ? "selected" : ""
     }" data-professional-id="${professional.id}">
       <img src="${professional.photo}" alt="${professional.name}">
       <h4>${professional.name}</h4>
@@ -318,15 +314,52 @@ function setupDateInput() {
   });
 }
 
-function isTimeBooked(professionalId, date, time) {
+function timeToMinutes(time) {
+  const [hours, minutes] = time.split(":").map(Number);
+  return hours * 60 + minutes;
+}
+
+function isWithinBusinessHours(time, duration) {
+  const start = timeToMinutes(time);
+  const end = start + duration;
+
+  const morningStart = timeToMinutes("08:00");
+  const morningEnd = timeToMinutes("12:00");
+
+  const afternoonStart = timeToMinutes("14:00");
+  const afternoonEnd = timeToMinutes("19:00");
+
+  const fitsMorning = start >= morningStart && end <= morningEnd;
+  const fitsAfternoon = start >= afternoonStart && end <= afternoonEnd;
+
+  return fitsMorning || fitsAfternoon;
+}
+
+function hasScheduleConflict(professionalId, date, time, duration) {
+  const start = timeToMinutes(time);
+  const end = start + duration;
+
   return getReservations().some((reservation) => {
-    return (
-      reservation.professionalId === professionalId &&
-      reservation.date === date &&
-      reservation.time === time &&
-      reservation.status !== "cancelada"
-    );
+    if (
+      reservation.professionalId !== professionalId ||
+      reservation.date !== date ||
+      reservation.status === "cancelada"
+    ) {
+      return false;
+    }
+
+    const reservationStart = timeToMinutes(reservation.time);
+    const reservationEnd = reservationStart + reservation.serviceDuration;
+
+    return start < reservationEnd && end > reservationStart;
   });
+}
+
+function isTimeUnavailable(professionalId, date, time, duration) {
+  return (
+    !isWithinBusinessHours(time, duration) ||
+    hasScheduleConflict(professionalId, date, time, duration)
+  );
 }
 
 function renderTimeOptions() {
@@ -349,10 +382,13 @@ function renderTimeOptions() {
 
   container.innerHTML = slots
     .map((slot) => {
-      const booked = isTimeBooked(
+      const service = getService(bookingState.serviceId);
+
+      const booked = isTimeUnavailable(
         bookingState.professionalId,
         bookingState.date,
-        slot
+        slot,
+        service.duration
       );
 
       return `
@@ -412,11 +448,15 @@ function setupBookingForm() {
       return;
     }
 
+    const service = getService(bookingState.serviceId);
+    const professional = getProfessional(bookingState.professionalId);
+
     if (
-      isTimeBooked(
+      isTimeUnavailable(
         bookingState.professionalId,
         bookingState.date,
-        bookingState.time
+        bookingState.time,
+        service.duration
       )
     ) {
       alert("Esse horário acabou de ser ocupado. Escolha outro horário.");
@@ -424,8 +464,6 @@ function setupBookingForm() {
       return;
     }
 
-    const service = getService(bookingState.serviceId);
-    const professional = getProfessional(bookingState.professionalId);
 
     const reservation = {
       id: generateId(),
@@ -548,28 +586,26 @@ function renderReservations(filterPhone = "") {
           <p><strong>Valor:</strong> ${money(reservation.servicePrice)} · <strong>Duração:</strong> ${reservation.serviceDuration} min</p>
           <p><strong>Status:</strong> ${reservation.status}</p>
 
-          ${
-            reservation.clientNote
-              ? `<p><strong>Observação:</strong> ${reservation.clientNote}</p>`
-              : ""
-          }
+          ${reservation.clientNote
+          ? `<p><strong>Observação:</strong> ${reservation.clientNote}</p>`
+          : ""
+        }
 
           <div class="reservation-actions">
             <a
               class="btn-outline"
               target="_blank"
               href="https://wa.me/${whatsappNumber}?text=${encodeURIComponent(
-                createWhatsappMessage(reservation)
-              )}"
+          createWhatsappMessage(reservation)
+        )}"
             >
               Enviar para o profissional
             </a>
 
-            ${
-              reservation.status !== "cancelada"
-                ? `<button class="btn-danger" data-cancel="${reservation.id}">Cancelar reserva</button>`
-                : ""
-            }
+            ${reservation.status !== "cancelada"
+          ? `<button class="btn-danger" data-cancel="${reservation.id}">Cancelar reserva</button>`
+          : ""
+        }
           </div>
         </div>
       `;
